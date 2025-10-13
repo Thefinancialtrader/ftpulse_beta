@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FTPULSE™ Macro Dashboard</title>
+<style>
+:root{
+  --bg: radial-gradient(circle at 50% 20%, #0d1117, #05070a);
+  --text:#e6eef8; --muted:#9ca6b4;
+  --green:#00e676; --red:#ff4d4d; --amber:#ffd166;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:Inter,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  display:flex;flex-direction:column;align-items:center;
+  min-height:100vh;padding:80px 16px 60px;
+}
+h1{font-size:26px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+
+/* GAUGE */
+.card{display:flex;flex-direction:column;align-items:center;margin-top:130px}
+svg{width:100%;max-width:680px;overflow:visible}
+.track{stroke:url(#grad);stroke-width:16;stroke-linecap:round;fill:none;filter:drop-shadow(0 0 8px rgba(0,0,0,.4))}
+.labels{font-size:12px;fill:#8d97a8}
+.needle polygon{
+  fill:white;
+  transform-origin:center bottom;
+  transition:transform 1.4s cubic-bezier(.25,.1,.25,1);
+}
+.value{font-size:42px;font-weight:700;margin-top:8px}
+.meta{color:var(--muted);font-size:12px;margin-bottom:4px}
+
+/* MOMENTUM BARS */
+.momentum{
+  width:min(900px,96vw);
+  display:flex;flex-direction:column;gap:12px;
+  margin-top:40px;
+}
+.bar{
+  position:relative;background:rgba(255,255,255,0.05);
+  border-radius:8px;height:22px;overflow:hidden;
+}
+.fill{
+  height:100%;border-radius:8px;
+  transition:width 1.2s cubic-bezier(.25,.1,.25,1);
+}
+.label{
+  display:flex;justify-content:space-between;
+  font-size:13px;margin-bottom:4px;color:var(--muted);
+}
+
+/* INFO */
+.info{
+  width:min(900px,96vw);
+  background:rgba(20,25,35,.78);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:14px;
+  padding:18px 22px;margin-top:30px;
+  color:var(--muted);font-size:13px;line-height:1.6;
+}
+.info strong{color:var(--text)}
+footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+  <h1>FTPULSE™ Macro Index</h1>
+  <div class="sub">Macroeconomic momentum (daily) — Reuters / Excel data</div>
+
+  <section class="card">
+    <svg id="gauge" viewBox="-140 -95 280 245">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ff4d4d"/>
+          <stop offset="50%" stop-color="#ffd166"/>
+          <stop offset="100%" stop-color="#00e676"/>
+        </linearGradient>
+      </defs>
+      <path d="M -110 0 A 110 110 0 0 1 110 0" class="track"/>
+      <text x="-110" y="24" class="labels">−5</text>
+      <text x="0" y="24" class="labels" text-anchor="middle">0</text>
+      <text x="110" y="24" class="labels" text-anchor="end">+5</text>
+      <g id="needle">
+        <polygon points="-3,0 3,0 0,-75"/>
+      </g>
+    </svg>
+    <div class="value" id="mm3Value">0.00</div>
+    <div class="meta" id="lastUpdate">Updated: —  |  Scale: −5 … +5</div>
+  </section>
+
+  <!-- MOMENTUM BARS -->
+  <section class="momentum">
+    <div class="label"><span>Macro Momentum — U.S.</span><span id="usVal">0.00</span></div>
+    <div class="bar"><div id="usBar" class="fill"></div></div>
+
+    <div class="label"><span>Macro Momentum — Eurozone</span><span id="euVal">0.00</span></div>
+    <div class="bar"><div id="euBar" class="fill"></div></div>
+  </section>
+
+  <section class="info">
+    <strong>MM3 (Global)</strong> = 3-week moving average of aggregated macroeconomic surprises.<br>
+    <strong>Macro Momentum US / EU</strong> = daily weighted average of released indicators (positive → stronger growth/inflation).<br>
+    Scale: −5 → 0 = risk-off macro; around 0 = neutral; 0 → +5 = risk-on macro.
+  </section>
+
+  <footer>© 2025 The Financial Trader — Institutional Dashboard Prototype</footer>
+
+<script>
+const CSV_INDEX='https://docs.google.com/spreadsheets/d/e/2PACX-1vR7odboGysDAKdqoAO-YB7DAf_6AHdacQTQJ3wQ98nDnfXBh4XygeUr1MDrimqp2i3kcotY_Xn_0kCt/pub?output=csv';
+const needle=document.getElementById('needle');
+const mm3El=document.getElementById('mm3Value');
+const updEl=document.getElementById('lastUpdate');
+const usVal=document.getElementById('usVal');
+const euVal=document.getElementById('euVal');
+const usBar=document.getElementById('usBar');
+const euBar=document.getElementById('euBar');
+
+function setGauge(v){
+  const val=Math.max(-5,Math.min(5,Number(v)||0));
+  const angle=-90+((val+5)/10)*180;
+  needle.style.transform=`rotate(${angle}deg)`;
+  mm3El.textContent=val.toFixed(2);
+}
+function setMomentum(bar,valEl,value){
+  const val=Math.max(-5,Math.min(5,Number(value)||0));
+  valEl.textContent=val.toFixed(2);
+  const pct=Math.abs(val)/5*100;
+  const color=val>0?'var(--green)':val<0?'var(--red)':'var(--amber)';
+  bar.style.width=pct+'%';
+  bar.style.background=color;
+  bar.style.marginLeft=val>0?'50%':'calc(50% - '+pct+'%)';
+}
+
+async function loadIndex(){
+  try{
+    const res=await fetch(CSV_INDEX+'&t='+Date.now());
+    const text=await res.text();
+    const lines=text.trim().split('\n');
+    const last=lines[lines.length-1].split(',');
+    const dt=last[0]?.trim()||'';
+    const val=parseFloat(last[1]);
+    const us=parseFloat(last[2]);
+    const eu=parseFloat(last[3]);
+    const d=new Date(dt);
+    const pretty=!isNaN(d)?d.toISOString().slice(0,10):dt;
+    updEl.textContent=`Updated: ${pretty||'—'}  |  Scale: −5 … +5`;
+    setGauge(val);
+    setMomentum(usBar,usVal,us);
+    setMomentum(euBar,euVal,eu);
+  }catch(e){
+    setGauge(0);setMomentum(usBar,usVal,0);setMomentum(euBar,euVal,0);
+  }
+}
+loadIndex();
+</script>
+</body>
+</html>
