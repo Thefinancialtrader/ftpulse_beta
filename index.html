@@ -117,20 +117,33 @@ const euVal=document.getElementById('euVal');
 const usBar=document.getElementById('usBar');
 const euBar=document.getElementById('euBar');
 
+/* aggiungiamo la barra scala e la label dinamica sotto il valore */
+const gaugeSection=document.querySelector('.card');
+const scale=document.createElement('div');
+scale.style.cssText='margin-top:10px;width:300px;height:6px;background:#1b2330;border-radius:4px;position:relative;';
+const dot=document.createElement('div');
+dot.id='scaleDot';
+dot.style.cssText='position:absolute;top:-3px;width:8px;height:8px;background:white;border-radius:50%;transition:left 1.2s cubic-bezier(.25,.1,.25,1);';
+scale.appendChild(dot);
+gaugeSection.appendChild(scale);
+
+const label=document.createElement('div');
+label.id='riskLabel';
+label.style.cssText='margin-top:8px;font-size:13px;font-weight:600;';
+gaugeSection.appendChild(label);
+
 /* --- CSV utils --- */
-// parser che rispetta i campi tra virgolette ("," dentro ai numeri)
 function splitCSVLine(line, sep=','){
   const out=[]; let cur=''; let q=false;
   for (let i=0;i<line.length;i++){
     const ch=line[i];
-    if (ch === '"'){ q = !q; continue; }
+    if (ch === '"'){ q=!q; continue; }
     if (ch === sep && !q){ out.push(cur); cur=''; continue; }
     cur += ch;
   }
   out.push(cur);
   return out.map(s=>s.trim());
 }
-// converte " −0,083 " -> -0.083
 function parseNumber(v){
   if(!v) return 0;
   return parseFloat(
@@ -144,7 +157,21 @@ function setGauge(v){
   const angle=-90+((val+5)/10)*180;
   needle.style.transform=`rotate(${angle}deg)`;
   mm3El.textContent=val.toFixed(3);
+
+  // aggiorna dot scala
+  const pct=(val+5)/10*100;
+  dot.style.left=`calc(${pct}% - 4px)`;
+
+  // aggiorna etichetta dinamica
+  const labelEl=document.getElementById('riskLabel');
+  let txt='', color='';
+  if(val < -1.0){ txt='Risk-Off — Weak Macro Momentum'; color='var(--red)'; }
+  else if(val > 1.0){ txt='Risk-On — Improving Macro Momentum'; color='var(--green)'; }
+  else { txt='Neutral Macro Trend'; color='var(--amber)'; }
+  labelEl.textContent=txt;
+  labelEl.style.color=color;
 }
+
 function setMomentum(bar,valEl,value){
   const val=Math.max(-5,Math.min(5,Number(value)||0));
   valEl.textContent=val.toFixed(3);
@@ -160,35 +187,28 @@ async function loadIndex(){
   try{
     const res = await fetch(CSV_INDEX + '&t=' + Date.now());
     const raw = await res.text();
-
-    // rileva separatore (Google a volte usa ';')
     const sep = raw.includes(';') ? ';' : ',';
-    const lines = raw.trim().split('\n')
-      .map(l=>l.replace(/\r/g,''))                // pulizia CR
-      .filter(l=>l.split(sep).length>=2);         // scarta righe vuote / ",,,"
+    const lines = raw.trim().split('\n').map(l=>l.replace(/\r/g,'')).filter(l=>l.split(sep).length>=2);
 
-    // header
     const header = splitCSVLine(lines[0], sep).map(h=>h.replace(/"/g,'').trim().toLowerCase());
     const idxDate = header.findIndex(h=>h.startsWith('date'));
     const idxMM3  = header.findIndex(h=>h.includes('mm3') || h.includes('ftpulse'));
     const idxUS   = header.findIndex(h=>h.includes('macrous'));
     const idxEU   = header.findIndex(h=>h.includes('macroeu'));
 
-    // prendi l'ultima riga valida (almeno 2 campi)
     let i = lines.length-1, row=null;
     while(i>0 && !row){
       const parts = splitCSVLine(lines[i], sep);
       if (parts.filter(x=>x && x !== ',').length >= 2) row = parts;
       i--;
     }
-    if(!row){ throw new Error('No data row'); }
+    if(!row) throw new Error('No data row');
 
     const dt  = (row[idxDate]||'').replace(/"/g,'').trim();
     const mm3 = parseNumber(row[idxMM3]);
     const us  = parseNumber(idxUS>=0 ? row[idxUS] : 0);
     const eu  = parseNumber(idxEU>=0 ? row[idxEU] : 0);
 
-    // UI
     const d=new Date(dt);
     const pretty = !isNaN(d) ? d.toISOString().slice(0,10) : dt;
     updEl.textContent = `Updated: ${pretty || '—'}  |  Scale: −5 … +5`;
@@ -197,7 +217,9 @@ async function loadIndex(){
     setMomentum(euBar, euVal, eu);
   }catch(e){
     console.error('CSV error', e);
-    setGauge(0); setMomentum(usBar,usVal,0); setMomentum(euBar,euVal,0);
+    setGauge(0);
+    setMomentum(usBar,usVal,0);
+    setMomentum(euBar,euVal,0);
   }
 }
 loadIndex();
