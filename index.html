@@ -107,78 +107,99 @@ footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
 
   <footer>© 2025 The Financial Trader — Institutional Dashboard Prototype</footer>
 <script>
-const CSV_INDEX = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR7odboGysDAKdqoAO-YB7DAf_6AHdacQTQJ3wQ98nDnfXBh4XygeUr1MDrimqp2i3kcotY_Xn_0kCt/pub?output=csv';
+const CSV_INDEX='https://docs.google.com/spreadsheets/d/e/2PACX-1vR7odboGysDAKdqoAO-YB7DAf_6AHdacQTQJ3wQ98nDnfXBh4XygeUr1MDrimqp2i3kcotY_Xn_0kCt/pub?output=csv';
 
-const needle = document.getElementById('needle');
-const mm3El  = document.getElementById('mm3Value');
-const updEl  = document.getElementById('lastUpdate');
-const usVal  = document.getElementById('usVal');
-const euVal  = document.getElementById('euVal');
-const usBar  = document.getElementById('usBar');
-const euBar  = document.getElementById('euBar');
+const needle=document.getElementById('needle');
+const mm3El=document.getElementById('mm3Value');
+const updEl=document.getElementById('lastUpdate');
+const usVal=document.getElementById('usVal');
+const euVal=document.getElementById('euVal');
+const usBar=document.getElementById('usBar');
+const euBar=document.getElementById('euBar');
 
-/* 🔧 Funzione che pulisce completamente e converte */
-function parseNumber(val) {
-  if (!val) return 0;
+/* --- CSV utils --- */
+// parser che rispetta i campi tra virgolette ("," dentro ai numeri)
+function splitCSVLine(line, sep=','){
+  const out=[]; let cur=''; let q=false;
+  for (let i=0;i<line.length;i++){
+    const ch=line[i];
+    if (ch === '"'){ q = !q; continue; }
+    if (ch === sep && !q){ out.push(cur); cur=''; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map(s=>s.trim());
+}
+// converte " −0,083 " -> -0.083
+function parseNumber(v){
+  if(!v) return 0;
   return parseFloat(
-    val
-      .replace(/"/g, '')        // toglie le virgolette
-      .replace(/\s/g, '')       // spazi
-      .replace(/[−–]/g, '-')    // eventuale meno lungo
-      .replace(',', '.')        // converte virgola in punto
-      .replace(/[^0-9.\-]/g, '')// lascia solo cifre, punto, segno
+    String(v).replace(/\s/g,'').replace(/[−–]/g,'-').replace(',', '.')
   ) || 0;
 }
 
-function setGauge(v) {
-  const val = Math.max(-5, Math.min(5, Number(v) || 0));
-  const angle = -90 + ((val + 5) / 10) * 180;
-  needle.style.transform = `rotate(${angle}deg)`;
-  mm3El.textContent = val.toFixed(3);
+/* --- Gauge & bars --- */
+function setGauge(v){
+  const val=Math.max(-5,Math.min(5,Number(v)||0));
+  const angle=-90+((val+5)/10)*180;
+  needle.style.transform=`rotate(${angle}deg)`;
+  mm3El.textContent=val.toFixed(3);
+}
+function setMomentum(bar,valEl,value){
+  const val=Math.max(-5,Math.min(5,Number(value)||0));
+  valEl.textContent=val.toFixed(3);
+  const pct=Math.abs(val)/5*100;
+  const color=val>0?'var(--green)':val<0?'var(--red)':'var(--amber)';
+  bar.style.width=pct+'%';
+  bar.style.background=color;
+  bar.style.marginLeft=val>0?'50%':'calc(50% - '+pct+'%)';
 }
 
-function setMomentum(bar, valEl, value) {
-  const val = Math.max(-5, Math.min(5, Number(value) || 0));
-  valEl.textContent = val.toFixed(3);
-  const pct = Math.abs(val) / 5 * 100;
-  const color = val > 0 ? 'var(--green)' : val < 0 ? 'var(--red)' : 'var(--amber)';
-  bar.style.width = pct + '%';
-  bar.style.background = color;
-  bar.style.marginLeft = val > 0 ? '50%' : `calc(50% - ${pct}%)`;
-}
-
-async function loadIndex() {
-  try {
+/* --- Load & map --- */
+async function loadIndex(){
+  try{
     const res = await fetch(CSV_INDEX + '&t=' + Date.now());
-    const text = await res.text();
+    const raw = await res.text();
 
-    const lines = text.trim().split('\n').filter(l => l.includes(','));
-    const last = lines[lines.length - 1].split(',');
-    
-    // 🔍 estrai campi (rimuovendo virgolette e simboli)
-    const dt  = (last[0] || '').replace(/"/g, '').trim();
-    const mm3 = parseNumber(last[1]);
-    const us  = parseNumber(last[2]);
-    const eu  = parseNumber(last[3]);
+    // rileva separatore (Google a volte usa ';')
+    const sep = raw.includes(';') ? ';' : ',';
+    const lines = raw.trim().split('\n')
+      .map(l=>l.replace(/\r/g,''))                // pulizia CR
+      .filter(l=>l.split(sep).length>=2);         // scarta righe vuote / ",,,"
 
-    console.log('Parsed →', { dt, mm3, us, eu });
+    // header
+    const header = splitCSVLine(lines[0], sep).map(h=>h.replace(/"/g,'').trim().toLowerCase());
+    const idxDate = header.findIndex(h=>h.startsWith('date'));
+    const idxMM3  = header.findIndex(h=>h.includes('mm3') || h.includes('ftpulse'));
+    const idxUS   = header.findIndex(h=>h.includes('macrous'));
+    const idxEU   = header.findIndex(h=>h.includes('macroeu'));
 
-    const d = new Date(dt);
+    // prendi l'ultima riga valida (almeno 2 campi)
+    let i = lines.length-1, row=null;
+    while(i>0 && !row){
+      const parts = splitCSVLine(lines[i], sep);
+      if (parts.filter(x=>x && x !== ',').length >= 2) row = parts;
+      i--;
+    }
+    if(!row){ throw new Error('No data row'); }
+
+    const dt  = (row[idxDate]||'').replace(/"/g,'').trim();
+    const mm3 = parseNumber(row[idxMM3]);
+    const us  = parseNumber(idxUS>=0 ? row[idxUS] : 0);
+    const eu  = parseNumber(idxEU>=0 ? row[idxEU] : 0);
+
+    // UI
+    const d=new Date(dt);
     const pretty = !isNaN(d) ? d.toISOString().slice(0,10) : dt;
-
     updEl.textContent = `Updated: ${pretty || '—'}  |  Scale: −5 … +5`;
     setGauge(mm3);
     setMomentum(usBar, usVal, us);
     setMomentum(euBar, euVal, eu);
-
-  } catch (e) {
-    console.error('CSV read error:', e);
-    setGauge(0);
-    setMomentum(usBar, usVal, 0);
-    setMomentum(euBar, euVal, 0);
+  }catch(e){
+    console.error('CSV error', e);
+    setGauge(0); setMomentum(usBar,usVal,0); setMomentum(euBar,euVal,0);
   }
 }
-
 loadIndex();
 </script>
 </body>
