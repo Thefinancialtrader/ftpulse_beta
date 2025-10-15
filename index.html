@@ -109,6 +109,7 @@ footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
 
 <script>
 const CSV_INDEX='https://docs.google.com/spreadsheets/d/e/2PACX-1vR7odboGysDAKdqoAO-YB7DAf_6AHdacQTQJ3wQ98nDnfXBh4XygeUr1MDrimqp2i3kcotY_Xn_0kCt/pub?output=csv';
+
 const needle=document.getElementById('needle');
 const mm3El=document.getElementById('mm3Value');
 const updEl=document.getElementById('lastUpdate');
@@ -121,11 +122,11 @@ function setGauge(v){
   const val=Math.max(-5,Math.min(5,Number(v)||0));
   const angle=-90+((val+5)/10)*180;
   needle.style.transform=`rotate(${angle}deg)`;
-  mm3El.textContent=val.toFixed(2);
+  mm3El.textContent=val.toFixed(3);
 }
 function setMomentum(bar,valEl,value){
   const val=Math.max(-5,Math.min(5,Number(value)||0));
-  valEl.textContent=val.toFixed(2);
+  valEl.textContent=val.toFixed(3);
   const pct=Math.abs(val)/5*100;
   const color=val>0?'var(--green)':val<0?'var(--red)':'var(--amber)';
   bar.style.width=pct+'%';
@@ -140,9 +141,9 @@ async function loadIndex(){
     const lines=text.trim().split('\n');
     const last=lines[lines.length-1].split(',');
     const dt=last[0]?.trim()||'';
-    const val=parseFloat(last[1]);
-    const us=parseFloat(last[2]);
-    const eu=parseFloat(last[3]);
+    const val=parseFloat(last[1]);   // MM3 / FTPULSE_Index
+    const us=parseFloat(last[2]);    // Macro US
+    const eu=parseFloat(last[3]);    // Macro EU
     const d=new Date(dt);
     const pretty=!isNaN(d)?d.toISOString().slice(0,10):dt;
     updEl.textContent=`Updated: ${pretty||'—'}  |  Scale: −5 … +5`;
