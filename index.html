@@ -141,26 +141,30 @@ function setMomentum(bar,valEl,value){
 
 async function loadIndex(){
   try{
-    const res=await fetch(CSV_INDEX+'&t='+Date.now());
-    const text=await res.text();
-    const lines=text.trim().split('\n').filter(l=>l.includes(','));
-    const last=lines[lines.length-1].split(',');
-    const dt=(last[0]||'').trim();
-    const val=parseNumber(last[1]);
-    const us=parseNumber(last[2]);
-    const eu=parseNumber(last[3]);
-    const d=new Date(dt);
-    const pretty=!isNaN(d)?d.toISOString().slice(0,10):dt;
-    updEl.textContent=`Updated: ${pretty||'—'}  |  Scale: −5 … +5`;
+    const res = await fetch(CSV_INDEX + '&t=' + Date.now());
+    const text = await res.text();
+    // Supporta sia "," che ";" come separatore
+    const sep = text.includes(';') ? ';' : ',';
+    const lines = text.trim().split('\n').filter(l => l.includes(sep));
+    const last = lines[lines.length - 1].split(sep);
+    const dt = (last[0] || '').trim();
+    const val = parseNumber(last[1]);
+    const us = parseNumber(last[2]);
+    const eu = parseNumber(last[3]);
+    const d = new Date(dt);
+    const pretty = !isNaN(d) ? d.toISOString().slice(0,10) : dt;
+    updEl.textContent = `Updated: ${pretty || '—'}  |  Scale: −5 … +5`;
     setGauge(val);
-    setMomentum(usBar,usVal,us);
-    setMomentum(euBar,euVal,eu);
-  }catch(e){
-    console.error(e);
-    setGauge(0);setMomentum(usBar,usVal,0);setMomentum(euBar,euVal,0);
+    setMomentum(usBar, usVal, us);
+    setMomentum(euBar, euVal, eu);
+  } catch(e){
+    console.error('CSV read error:', e);
+    setGauge(0);
+    setMomentum(usBar, usVal, 0);
+    setMomentum(euBar, euVal, 0);
   }
 }
-loadIndex();
+
 </script>
 </body>
 </html>
