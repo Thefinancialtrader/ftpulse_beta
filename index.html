@@ -118,6 +118,11 @@ const euVal=document.getElementById('euVal');
 const usBar=document.getElementById('usBar');
 const euBar=document.getElementById('euBar');
 
+function parseNumber(val){
+  if(!val) return 0;
+  return parseFloat(val.replace(',', '.').replace(/[^0-9\.\-]/g,'')) || 0;
+}
+
 function setGauge(v){
   const val=Math.max(-5,Math.min(5,Number(v)||0));
   const angle=-90+((val+5)/10)*180;
@@ -138,12 +143,12 @@ async function loadIndex(){
   try{
     const res=await fetch(CSV_INDEX+'&t='+Date.now());
     const text=await res.text();
-    const lines=text.trim().split('\n');
+    const lines=text.trim().split('\n').filter(l=>l.includes(','));
     const last=lines[lines.length-1].split(',');
-    const dt=last[0]?.trim()||'';
-    const val=parseFloat(last[1]);   // MM3 / FTPULSE_Index
-    const us=parseFloat(last[2]);    // Macro US
-    const eu=parseFloat(last[3]);    // Macro EU
+    const dt=(last[0]||'').trim();
+    const val=parseNumber(last[1]);
+    const us=parseNumber(last[2]);
+    const eu=parseNumber(last[3]);
     const d=new Date(dt);
     const pretty=!isNaN(d)?d.toISOString().slice(0,10):dt;
     updEl.textContent=`Updated: ${pretty||'—'}  |  Scale: −5 … +5`;
@@ -151,6 +156,7 @@ async function loadIndex(){
     setMomentum(usBar,usVal,us);
     setMomentum(euBar,euVal,eu);
   }catch(e){
+    console.error(e);
     setGauge(0);setMomentum(usBar,usVal,0);setMomentum(euBar,euVal,0);
   }
 }
