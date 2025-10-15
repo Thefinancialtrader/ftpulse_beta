@@ -106,7 +106,6 @@ footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
   </section>
 
   <footer>© 2025 The Financial Trader — Institutional Dashboard Prototype</footer>
-
 <script>
 const CSV_INDEX='https://docs.google.com/spreadsheets/d/e/2PACX-1vR7odboGysDAKdqoAO-YB7DAf_6AHdacQTQJ3wQ98nDnfXBh4XygeUr1MDrimqp2i3kcotY_Xn_0kCt/pub?output=csv';
 
@@ -118,9 +117,16 @@ const euVal=document.getElementById('euVal');
 const usBar=document.getElementById('usBar');
 const euBar=document.getElementById('euBar');
 
+// ✅ converte "−0,046" o " 0,083 " in numero JS
 function parseNumber(val){
   if(!val) return 0;
-  return parseFloat(val.replace(',', '.').replace(/[^0-9\.\-]/g,'')) || 0;
+  return parseFloat(
+    val
+      .replace(/\s/g,'')        // rimuove spazi
+      .replace(/[−–]/g,'-')     // converte il simbolo meno "lungo"
+      .replace(',', '.')        // converte virgola in punto
+      .replace(/[^0-9\.\-]/g,'')// rimuove tutto ciò che non è cifra/punto/segno
+  ) || 0;
 }
 
 function setGauge(v){
@@ -143,19 +149,23 @@ async function loadIndex(){
   try{
     const res=await fetch(CSV_INDEX+'&t='+Date.now());
     const text=await res.text();
-    // Rileva il separatore corretto
+
+    // rileva automaticamente il separatore
     const sep=text.includes(';')?';':',';
     const lines=text.trim().split('\n').filter(l=>l.includes(sep));
+
     const last=lines[lines.length-1].split(sep);
     const dt=(last[0]||'').trim();
-    const val=parseNumber(last[1]);
+    const mm3=parseNumber(last[1]);
     const us=parseNumber(last[2]);
     const eu=parseNumber(last[3]);
-    console.log('Parsed:',{dt,val,us,eu});
+
+    console.log('Parsed CSV →', {dt, mm3, us, eu}); // ✅ DEBUG
+
     const d=new Date(dt);
     const pretty=!isNaN(d)?d.toISOString().slice(0,10):dt;
     updEl.textContent=`Updated: ${pretty||'—'}  |  Scale: −5 … +5`;
-    setGauge(val);
+    setGauge(mm3);
     setMomentum(usBar,usVal,us);
     setMomentum(euBar,euVal,eu);
   }catch(e){
@@ -163,6 +173,7 @@ async function loadIndex(){
     setGauge(0);setMomentum(usBar,usVal,0);setMomentum(euBar,euVal,0);
   }
 }
+
 loadIndex();
 </script>
 </body>
